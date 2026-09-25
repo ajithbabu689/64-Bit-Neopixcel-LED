@@ -1,0 +1,260 @@
+// LED DATA Pin GPIO 18 and Push button connected from GPIO 19 to Ground.(Internal Pullup used)
+
+#include <Adafruit_NeoPixel.h>
+
+#define LED_PIN        18
+#define BUTTON_PIN     19
+#define NUM_LEDS       64
+#define MATRIX_WIDTH   8
+#define MATRIX_HEIGHT  8
+#define BRIGHTNESS     40  // Brightness control (0-255)
+
+Adafruit_NeoPixel matrix(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+// Global Variables
+uint8_t currentPattern = 0;
+const uint8_t TOTAL_PATTERNS = 10;
+
+// Button Debounce
+bool lastButtonState = HIGH;
+bool buttonState = HIGH;
+unsigned long lastDebounceTime = 0;
+const unsigned long debounceDelay = 50;
+
+// Animation Control
+unsigned long lastUpdate = 0;
+uint16_t stepCount = 0;
+
+// Helper: 2D Coordinates (x, y) to 1D Zigzag Index
+uint16_t XY(uint8_t x, uint8_t y) {
+  if (y & 0x01) {
+    return (y * MATRIX_WIDTH) + (MATRIX_WIDTH - 1 - x);
+  } else {
+    return (y * MATRIX_WIDTH) + x;
+  }
+}
+
+// Helper: Color Wheel (0-255)
+uint32_t Wheel(byte WheelPos) {
+  WheelPos = 255 - WheelPos;
+  if (WheelPos < 85) {
+    return matrix.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  }
+  if (WheelPos < 170) {
+    WheelPos -= 85;
+    return matrix.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+  WheelPos -= 170;
+  return matrix.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+}
+
+// Declarations of 10 Geometric Patterns
+void pattern1_ExpandingRings(uint16_t step);
+void pattern2_RotatingRadar(uint16_t step);
+void pattern3_PulsingStarburst(uint16_t step);
+void pattern4_RotatingDiamond(uint16_t step);
+void pattern5_ShrinkingRings(uint16_t step);
+void pattern6_SpiralGalaxy(uint16_t step);
+void pattern7_ExpandingSquares(uint16_t step);
+void pattern8_DoubleRipples(uint16_t step);
+void pattern9_TunnelIllusion(uint16_t step);
+void pattern10_RotatingCrosshair(uint16_t step);
+
+void setup() {
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  
+  matrix.begin();
+  matrix.setBrightness(BRIGHTNESS);
+  matrix.clear();
+  matrix.show();
+}
+
+void loop() {
+  // Non-blocking Button Read & Debounce
+  int reading = digitalRead(BUTTON_PIN);
+  if (reading != lastButtonState) {
+    lastDebounceTime = millis();
+  }
+
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (reading != buttonState) {
+      buttonState = reading;
+      if (buttonState == LOW) { // Button switch pattern
+        currentPattern = (currentPattern + 1) % TOTAL_PATTERNS;
+        stepCount = 0;          
+        matrix.clear();
+      }
+    }
+  }
+  lastButtonState = reading;
+
+  // Non-blocking Animation Rendering Loop
+  if (millis() - lastUpdate > 30) {
+    lastUpdate = millis();
+    stepCount++;
+
+    switch (currentPattern) {
+      case 0: pattern1_ExpandingRings(stepCount); break;
+      case 1: pattern2_RotatingRadar(stepCount); break;
+      case 2: pattern3_PulsingStarburst(stepCount); break;
+      case 3: pattern4_RotatingDiamond(stepCount); break;
+      case 4: pattern5_ShrinkingRings(stepCount); break;
+      case 5: pattern6_SpiralGalaxy(stepCount); break;
+      case 6: pattern7_ExpandingSquares(stepCount); break;
+      case 7: pattern8_DoubleRipples(stepCount); break;
+      case 8: pattern9_TunnelIllusion(stepCount); break;
+      case 9: pattern10_RotatingCrosshair(stepCount); break;
+    }
+
+    matrix.show();
+  }
+}
+
+// ====================================================================
+// 10 GEOMETRIC & CONCENTRIC PATTERNS
+// ====================================================================
+
+// 1. Expanding Center Concentric Circles
+void pattern1_ExpandingRings(uint16_t step) {
+  float centerX = 3.5, centerY = 3.5;
+  for (uint8_t x = 0; x < 8; x++) {
+    for (uint8_t y = 0; y < 8; y++) {
+      float dist = sqrt((x - centerX) * (x - centerX) + (y - centerY) * (y - centerY));
+      byte color = (byte)((dist * 35.0) - (step * 8)) & 255;
+      matrix.setPixelColor(XY(x, y), Wheel(color));
+    }
+  }
+}
+
+// 2. Rotating Radar Sweep
+void pattern2_RotatingRadar(uint16_t step) {
+  matrix.clear();
+  float angle = (step * 8 % 360) * (PI / 180.0);
+  float centerX = 3.5, centerY = 3.5;
+
+  for (float r = 0; r < 5.0; r += 0.3) {
+    int x = round(centerX + r * cos(angle));
+    int y = round(centerY + r * sin(angle));
+    if (x >= 0 && x < 8 && y >= 0 && y < 8) {
+      byte color = (step * 4 + (int)(r * 20)) & 255;
+      matrix.setPixelColor(XY(x, y), Wheel(color));
+    }
+  }
+}
+
+// 3. Central Pulsing Starburst (Dynamic Star Rays)
+void pattern3_PulsingStarburst(uint16_t step) {
+  float centerX = 3.5, centerY = 3.5;
+  for (uint8_t x = 0; x < 8; x++) {
+    for (uint8_t y = 0; y < 8; y++) {
+      float dx = fabs(x - centerX);
+      float dy = fabs(y - centerY);
+      float val = sin((dx * dy) - (step * 0.2));
+      byte hue = (byte)((val + 1.0) * 127.0);
+      matrix.setPixelColor(XY(x, y), Wheel(hue));
+    }
+  }
+}
+
+// 4. Rotating Geometric Diamond (Manhattan Distance Center)
+void pattern4_RotatingDiamond(uint16_t step) {
+  float centerX = 3.5, centerY = 3.5;
+  for (uint8_t x = 0; x < 8; x++) {
+    for (uint8_t y = 0; y < 8; y++) {
+      float mDist = fabs(x - centerX) + fabs(y - centerY);
+      byte color = (byte)((mDist * 40.0) - (step * 6)) & 255;
+      matrix.setPixelColor(XY(x, y), Wheel(color));
+    }
+  }
+}
+
+// 5. Inward Shrinking Rings
+void pattern5_ShrinkingRings(uint16_t step) {
+  float centerX = 3.5, centerY = 3.5;
+  for (uint8_t x = 0; x < 8; x++) {
+    for (uint8_t y = 0; y < 8; y++) {
+      float dist = sqrt((x - centerX) * (x - centerX) + (y - centerY) * (y - centerY));
+      byte color = (byte)((dist * 35.0) + (step * 8)) & 255;
+      matrix.setPixelColor(XY(x, y), Wheel(color));
+    }
+  }
+}
+
+// 6. Dynamic Spiral Galaxy
+void pattern6_SpiralGalaxy(uint16_t step) {
+  float centerX = 3.5, centerY = 3.5;
+  for (uint8_t x = 0; x < 8; x++) {
+    for (uint8_t y = 0; y < 8; y++) {
+      float dx = x - centerX;
+      float dy = y - centerY;
+      float angle = atan2(dy, dx);
+      float dist = sqrt(dx * dx + dy * dy);
+      
+      byte color = (byte)((angle * 20.0) + (dist * 25.0) - (step * 5)) & 255;
+      matrix.setPixelColor(XY(x, y), Wheel(color));
+    }
+  }
+}
+
+// 7. Expanding Concentric Squares (Chebyshev Center Distance)
+void pattern7_ExpandingSquares(uint16_t step) {
+  float centerX = 3.5, centerY = 3.5;
+  for (uint8_t x = 0; x < 8; x++) {
+    for (uint8_t y = 0; y < 8; y++) {
+      float maxDist = max(fabs(x - centerX), fabs(y - centerY));
+      byte color = (byte)((maxDist * 50.0) - (step * 10)) & 255;
+      matrix.setPixelColor(XY(x, y), Wheel(color));
+    }
+  }
+}
+
+// 8. Double Interference Ripple Waves
+void pattern8_DoubleRipples(uint16_t step) {
+  for (uint8_t x = 0; x < 8; x++) {
+    for (uint8_t y = 0; y < 8; y++) {
+      float d1 = sqrt((x - 1.5) * (x - 1.5) + (y - 1.5) * (y - 1.5));
+      float d2 = sqrt((x - 5.5) * (x - 5.5) + (y - 5.5) * (y - 5.5));
+      
+      byte color = (byte)((d1 * 25.0 + d2 * 25.0) - (step * 6)) & 255;
+      matrix.setPixelColor(XY(x, y), Wheel(color));
+    }
+  }
+}
+
+// 9. 3D Tunnel Illusion
+void pattern9_TunnelIllusion(uint16_t step) {
+  float centerX = 3.5, centerY = 3.5;
+  for (uint8_t x = 0; x < 8; x++) {
+    for (uint8_t y = 0; y < 8; y++) {
+      float dist = sqrt((x - centerX) * (x - centerX) + (y - centerY) * (y - centerY));
+      if (dist < 0.2) dist = 0.2; // avoid division by zero
+      
+      byte bright = (byte)(fmod((10.0 / dist) + (step * 0.4), 2.0) > 1.0 ? 255 : 0);
+      byte hue = (byte)(dist * 30.0 + step) & 255;
+      
+      if (bright > 0) {
+        matrix.setPixelColor(XY(x, y), Wheel(hue));
+      } else {
+        matrix.setPixelColor(XY(x, y), 0);
+      }
+    }
+  }
+}
+
+// 10. Dynamic Rotating Crosshair Target
+void pattern10_RotatingCrosshair(uint16_t step) {
+  matrix.clear();
+  float angle = (step * 4 % 360) * (PI / 180.0);
+  float centerX = 3.5, centerY = 3.5;
+
+  for (uint8_t i = 0; i < 4; i++) {
+    float currentAngle = angle + (i * PI / 2.0);
+    for (float r = 0.5; r < 4.5; r += 0.5) {
+      int x = round(centerX + r * cos(currentAngle));
+      int y = round(centerY + r * sin(currentAngle));
+      if (x >= 0 && x < 8 && y >= 0 && y < 8) {
+        matrix.setPixelColor(XY(x, y), Wheel((step * 3 + i * 64) & 255));
+      }
+    }
+  }
+}
