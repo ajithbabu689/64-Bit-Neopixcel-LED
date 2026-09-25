@@ -1,4 +1,4 @@
-// LED DATA Pin GPIO 18 and Push button connected from GPIO 19 to Ground.(Internal Pullup used)
+// ESP32 LED DATA Pin GPIO 18 used with 330E series resistor and Push button connected from GPIO 19 to Ground.(Internal Pullup used)
 
 #include <Adafruit_NeoPixel.h>
 
